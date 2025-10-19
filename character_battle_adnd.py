@@ -4,14 +4,56 @@ import random
 import re
 
 class Character:
-    def __init__(self, name, stats, surprised=False):
+    def __init__(self, name, stats, surprised=False, roll_hp=False):
         self.name = name
         self.stats = stats.copy()
-        self.current_hp = stats["Hit points"]
-        self.max_hp = stats["Hit points"]
+
+        # Παίρνουμε το HP - αν είναι dice notation και roll_hp=True, το ρίχνουμε
+        hp_value = stats["Hit points"]
+
+        # Αν roll_hp=True και είναι dice notation (string με 'd'), το ρίχνουμε
+        if roll_hp and isinstance(hp_value, str) and 'd' in hp_value.lower():
+            hp_value = self._roll_dice_notation(hp_value)
+        # Αν είναι string αλλά όχι dice notation, προσπαθούμε να το μετατρέψουμε σε int
+        elif isinstance(hp_value, str):
+            try:
+                hp_value = int(hp_value)
+            except ValueError:
+                hp_value = 1  # Fallback
+
+        self.current_hp = hp_value
+        self.max_hp = hp_value
         self.attacks_this_round = 0  # Για tracking πολλαπλών επιθέσεων
         self.attacks_previous_round = 0  # Για fractional attacks
         self.surprised = surprised
+
+    def _roll_dice_notation(self, dice_str):
+        """Ρίχνει dice notation της μορφής XdY+Z ή XdY-Z ή XdY"""
+        dice_str = dice_str.strip()
+
+        # Pattern: XdY+Z ή XdY-Z ή XdY
+        match = re.match(r'(\d+)d(\d+)(([+-])(\d+))?', dice_str, re.IGNORECASE)
+
+        if match:
+            num_dice = int(match.group(1))
+            die_size = int(match.group(2))
+            bonus = 0
+
+            if match.group(3):  # Υπάρχει bonus
+                sign = match.group(4)
+                bonus_value = int(match.group(5))
+                bonus = bonus_value if sign == '+' else -bonus_value
+
+            total = 0
+            for _ in range(num_dice):
+                total += random.randint(1, die_size)
+
+            total += bonus
+            # Τα ελάχιστα HP είναι ίσα με τον αριθμό των ζαριών (κάθε ζάρι = τουλάχιστον 1)
+            return max(num_dice, total)
+        else:
+            # Default αν δεν μπορούμε να το parse
+            return 1
 
     def is_alive(self):
         return self.current_hp > 0
@@ -86,19 +128,31 @@ class CharacterBattleApp:
         self.char2_number_entry.grid(row=number_row, column=2, padx=10, pady=5)
         self.char2_number_entry.insert(0, "1")  # Default value
 
+        # Numbers engaged
+        engaged_row = len(self.stats) + 3
+        ttk.Label(main_frame, text="Numbers engaged").grid(row=engaged_row, column=0, sticky=tk.E, padx=(0, 10), pady=5)
+
+        # Empty space for Character 1 column
+        ttk.Label(main_frame, text="").grid(row=engaged_row, column=1, padx=10, pady=5)
+
+        # Engaged entry for Character 2
+        self.char2_engaged_entry = ttk.Entry(main_frame, width=10)
+        self.char2_engaged_entry.grid(row=engaged_row, column=2, padx=10, pady=5)
+        self.char2_engaged_entry.insert(0, "1")  # Default value
+
         # Battle buttons
         single_battle_btn = ttk.Button(main_frame, text="Μονομαχία", command=self.single_battle)
-        single_battle_btn.grid(row=len(self.stats) + 3, column=0, columnspan=3, pady=10)
+        single_battle_btn.grid(row=len(self.stats) + 4, column=0, columnspan=3, pady=10)
 
         thousand_battles_btn = ttk.Button(main_frame, text="1000 μάχες", command=self.thousand_battles)
-        thousand_battles_btn.grid(row=len(self.stats) + 4, column=0, columnspan=3, pady=10)
+        thousand_battles_btn.grid(row=len(self.stats) + 5, column=0, columnspan=3, pady=10)
 
-        ten_thousand_battles_btn = ttk.Button(main_frame, text="10000 μάχες", command=self.ten_thousand_battles)
-        ten_thousand_battles_btn.grid(row=len(self.stats) + 5, column=0, columnspan=3, pady=10)
+        hundred_thousand_battles_btn = ttk.Button(main_frame, text="100000 μάχες", command=self.hundred_thousand_battles)
+        hundred_thousand_battles_btn.grid(row=len(self.stats) + 6, column=0, columnspan=3, pady=10)
 
         # Result text area
         result_frame = ttk.LabelFrame(main_frame, text="Αποτέλεσμα", padding="10")
-        result_frame.grid(row=len(self.stats) + 6, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=10)
+        result_frame.grid(row=len(self.stats) + 7, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=10)
 
         self.result_text = tk.Text(result_frame, height=15, width=70, wrap=tk.WORD)
         scrollbar = ttk.Scrollbar(result_frame, orient=tk.VERTICAL, command=self.result_text.yview)
@@ -113,7 +167,7 @@ class CharacterBattleApp:
 
         result_frame.columnconfigure(0, weight=1)
         result_frame.rowconfigure(0, weight=1)
-        main_frame.rowconfigure(len(self.stats) + 6, weight=1)
+        main_frame.rowconfigure(len(self.stats) + 7, weight=1)
 
     def select_all(self, event):
         """Select all text in result area"""
@@ -141,6 +195,17 @@ class CharacterBattleApp:
                 stats[stat] = value if value else "1d6"
             elif stat == "Number of attacks":
                 stats[stat] = value if value else "1"
+            elif stat == "Hit points":
+                # Κρατάμε το HP ως string αν περιέχει 'd' (dice notation)
+                if value and 'd' in value.lower():
+                    stats[stat] = value
+                elif value:
+                    try:
+                        stats[stat] = int(value)
+                    except ValueError:
+                        stats[stat] = 1
+                else:
+                    stats[stat] = 1  # Default 1 HP αν δεν υπάρχει τιμή
             else:
                 try:
                     stats[stat] = int(value) if value else 0
@@ -153,6 +218,14 @@ class CharacterBattleApp:
         try:
             number = int(self.char2_number_entry.get()) if self.char2_number_entry.get() else 1
             return max(1, number)
+        except ValueError:
+            return 1
+
+    def get_char2_engaged(self):
+        """Παίρνει τον αριθμό των χαρακτήρων 2 που μάχονται ταυτόχρονα (τουλάχιστον 1)"""
+        try:
+            engaged = int(self.char2_engaged_entry.get()) if self.char2_engaged_entry.get() else 1
+            return max(1, engaged)
         except ValueError:
             return 1
 
@@ -462,8 +535,8 @@ class CharacterBattleApp:
 
     def simulate_battle(self, char1_stats, char2_stats, char1_surprised, char2_surprised, verbose=True):
         """Προσομοιώνει μια πλήρη μάχη"""
-        char1 = Character("Χαρακτήρας 1", char1_stats, char1_surprised)
-        char2 = Character("Χαρακτήρας 2", char2_stats, char2_surprised)
+        char1 = Character("Χαρακτήρας 1", char1_stats, char1_surprised, roll_hp=True)
+        char2 = Character("Χαρακτήρας 2", char2_stats, char2_surprised, roll_hp=True)
 
         result = ""
 
@@ -499,18 +572,19 @@ class CharacterBattleApp:
             result += "\nΗ μάχη διαρκεί πολύ! Ισοπαλία.\n"
         return result, 0, round_number
 
-    def simulate_battle_1vMany(self, char1_stats, char2_stats, char2_number, char1_surprised, char2_surprised, verbose=True):
-        """Προσομοιώνει μάχη 1 vs πολλοί"""
-        char1 = Character("Χαρακτήρας 1", char1_stats, char1_surprised)
+    def simulate_battle_1vMany(self, char1_stats, char2_stats, char2_number, char2_engaged, char1_surprised, char2_surprised, verbose=True):
+        """Προσομοιώνει μάχη 1 vs πολλοί με reserves"""
+        char1 = Character("Χαρακτήρας 1", char1_stats, char1_surprised, roll_hp=True)
         char2_list = []
 
+        # Κάθε εχθρός παίρνει ΞΕΧΩΡΙΣΤΑ rolled HP!
         for i in range(char2_number):
-            char = Character(f"Χαρακτήρας 2.{i+1}", char2_stats, char2_surprised)
+            char = Character(f"Χαρακτήρας 2.{i+1}", char2_stats, char2_surprised, roll_hp=True)
             char2_list.append(char)
 
         result = ""
         if verbose:
-            result += f"=== ΜΑΧΗ ΧΑΡΑΚΤΗΡΩΝ - AD&D (1 vs {char2_number}) ===\n\n"
+            result += f"=== ΜΑΧΗ ΧΑΡΑΚΤΗΡΩΝ - AD&D (1 vs {char2_number}, max {char2_engaged} engaged) ===\n\n"
 
         round_number = 0
         while round_number < 100:  # Safety limit
@@ -530,23 +604,33 @@ class CharacterBattleApp:
                     result += f"Συνολικοί γύροι: {round_number}\n"
                 return result, 2, round_number
 
+            # Χωρίζουμε σε engaged και reserves
+            engaged_enemies = alive_enemies[:char2_engaged]
+            reserves = alive_enemies[char2_engaged:]
+
             if verbose:
                 result += f"=== ΓΥΡΟΣ {round_number} ===\n"
-                result += f"Ζωντανοί εχθροί: {len(alive_enemies)}\n\n"
+                if reserves:
+                    result += f"Engaged: {len(engaged_enemies)}, Reserves: {len(reserves)}\n\n"
+                else:
+                    result += f"Ζωντανοί εχθροί: {len(alive_enemies)}\n\n"
 
-            # Επιλογή στόχου: ο πιο χτυπημένος
-            target = min(alive_enemies, key=lambda c: c.current_hp)
+            # Επιλογή στόχου: ο πιο χτυπημένος από τους engaged
+            target = min(engaged_enemies, key=lambda c: c.current_hp)
 
             # Char1 επιτίθεται
             char1_main, char1_extra = self.get_attacks_for_round(char1, round_number)
 
             for attack_num in range(char1_main + char1_extra):
                 if not target.is_alive():
-                    # Αλλάζουμε στόχο
+                    # Αλλάζουμε στόχο από τους engaged
                     alive_enemies = [c for c in char2_list if c.is_alive()]
+                    engaged_enemies = alive_enemies[:char2_engaged]
                     if not alive_enemies:
                         break
-                    target = min(alive_enemies, key=lambda c: c.current_hp)
+                    if not engaged_enemies:
+                        break
+                    target = min(engaged_enemies, key=lambda c: c.current_hp)
 
                 attack_type = "Επίθεση" if attack_num == 0 else f"Επιπλέον επίθεση {attack_num}"
                 attack_result, defeated = self.perform_attack(char1, target, attack_type)
@@ -562,8 +646,11 @@ class CharacterBattleApp:
                     result += f"Συνολικοί γύροι: {round_number}\n"
                 return result, 1, round_number
 
-            # Εχθροί επιτίθενται
-            for enemy in alive_enemies:
+            # Ενημερώνουμε τους engaged μετά τις επιθέσεις του char1
+            engaged_enemies = alive_enemies[:char2_engaged]
+
+            # Engaged εχθροί επιτίθενται
+            for enemy in engaged_enemies:
                 if not char1.is_alive():
                     break
 
@@ -595,6 +682,7 @@ class CharacterBattleApp:
         char1_stats = self.get_character_stats(self.char1_entries)
         char2_stats = self.get_character_stats(self.char2_entries)
         char2_number = self.get_char2_number()
+        char2_engaged = self.get_char2_engaged()
 
         # Clear previous results
         self.result_text.delete(1.0, tk.END)
@@ -607,7 +695,7 @@ class CharacterBattleApp:
             )
         else:
             result, winner, rounds = self.simulate_battle_1vMany(
-                char1_stats, char2_stats, char2_number,
+                char1_stats, char2_stats, char2_number, char2_engaged,
                 self.char1_surprised.get(), self.char2_surprised.get(),
                 verbose=True
             )
@@ -619,6 +707,7 @@ class CharacterBattleApp:
         char1_stats = self.get_character_stats(self.char1_entries)
         char2_stats = self.get_character_stats(self.char2_entries)
         char2_number = self.get_char2_number()
+        char2_engaged = self.get_char2_engaged()
 
         char1_wins = 0
         char2_wins = 0
@@ -632,7 +721,7 @@ class CharacterBattleApp:
         if char2_number == 1:
             self.result_text.insert(tk.END, "Εκτελούνται 1000 μάχες...\n\n")
         else:
-            self.result_text.insert(tk.END, f"Εκτελούνται 1000 μάχες (1 vs {char2_number})...\n\n")
+            self.result_text.insert(tk.END, f"Εκτελούνται 1000 μάχες (1 vs {char2_number}, max {char2_engaged} engaged)...\n\n")
         self.root.update()
 
         for i in range(1000):
@@ -644,7 +733,7 @@ class CharacterBattleApp:
                 )
             else:
                 _, winner, rounds = self.simulate_battle_1vMany(
-                    char1_stats, char2_stats, char2_number,
+                    char1_stats, char2_stats, char2_number, char2_engaged,
                     self.char1_surprised.get(), self.char2_surprised.get(),
                     verbose=False
                 )
@@ -687,11 +776,12 @@ class CharacterBattleApp:
 
         self.result_text.insert(tk.END, result)
 
-    def ten_thousand_battles(self):
-        """Εκτελεί 10000 μάχες και εμφανίζει στατιστικά"""
+    def hundred_thousand_battles(self):
+        """Εκτελεί 100000 μάχες και εμφανίζει στατιστικά"""
         char1_stats = self.get_character_stats(self.char1_entries)
         char2_stats = self.get_character_stats(self.char2_entries)
         char2_number = self.get_char2_number()
+        char2_engaged = self.get_char2_engaged()
 
         char1_wins = 0
         char2_wins = 0
@@ -703,12 +793,12 @@ class CharacterBattleApp:
         # Clear previous results
         self.result_text.delete(1.0, tk.END)
         if char2_number == 1:
-            self.result_text.insert(tk.END, "Εκτελούνται 10000 μάχες...\n\n")
+            self.result_text.insert(tk.END, "Εκτελούνται 100000 μάχες...\n\n")
         else:
-            self.result_text.insert(tk.END, f"Εκτελούνται 10000 μάχες (1 vs {char2_number})...\n\n")
+            self.result_text.insert(tk.END, f"Εκτελούνται 100000 μάχες (1 vs {char2_number}, max {char2_engaged} engaged)...\n\n")
         self.root.update()
 
-        for i in range(10000):
+        for i in range(100000):
             if char2_number == 1:
                 _, winner, rounds = self.simulate_battle(
                     char1_stats, char2_stats,
@@ -717,7 +807,7 @@ class CharacterBattleApp:
                 )
             else:
                 _, winner, rounds = self.simulate_battle_1vMany(
-                    char1_stats, char2_stats, char2_number,
+                    char1_stats, char2_stats, char2_number, char2_engaged,
                     self.char1_surprised.get(), self.char2_surprised.get(),
                     verbose=False
                 )
@@ -734,18 +824,18 @@ class CharacterBattleApp:
                 draws += 1
 
         # Αποτελέσματα
-        avg_rounds = total_rounds / 10000
-        result = f"=== ΑΠΟΤΕΛΕΣΜΑΤΑ 10000 ΜΑΧΩΩΝ ===\n"
+        avg_rounds = total_rounds / 100000
+        result = f"=== ΑΠΟΤΕΛΕΣΜΑΤΑ 100000 ΜΑΧΩΩΝ ===\n"
         if char2_number > 1:
             result += f"(Χαρακτήρας 1 εναντίον {char2_number} αντιπάλων)\n"
         result += "\n"
-        result += f"Χαρακτήρας 1: {char1_wins} νίκες ({char1_wins/100:.1f}%)\n"
+        result += f"Χαρακτήρας 1: {char1_wins} νίκες ({char1_wins/1000:.1f}%)\n"
         if char2_number == 1:
-            result += f"Χαρακτήρας 2: {char2_wins} νίκες ({char2_wins/100:.1f}%)\n"
+            result += f"Χαρακτήρας 2: {char2_wins} νίκες ({char2_wins/1000:.1f}%)\n"
         else:
-            result += f"Οι αντίπαλοι: {char2_wins} νίκες ({char2_wins/100:.1f}%)\n"
+            result += f"Οι αντίπαλοι: {char2_wins} νίκες ({char2_wins/1000:.1f}%)\n"
         if draws > 0:
-            result += f"Ισοπαλίες: {draws} ({draws/100:.1f}%)\n"
+            result += f"Ισοπαλίες: {draws} ({draws/1000:.1f}%)\n"
         result += f"Μέσος όρος γύρων ανά μάχη: {avg_rounds:.2f} (εύρος: {min_rounds}-{max_rounds})\n\n"
 
         if char1_wins > char2_wins:

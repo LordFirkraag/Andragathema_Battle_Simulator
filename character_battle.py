@@ -160,8 +160,20 @@ class CharacterBattleApp:
         self.char2_number_entry.grid(row=number_row, column=2, padx=10, pady=5)
         self.char2_number_entry.insert(0, "1")  # Default value
 
+        # Πόσοι μάχονται
+        engaged_row = len(self.stats) + 5
+        ttk.Label(main_frame, text="Πόσοι μάχονται").grid(row=engaged_row, column=0, sticky=tk.E, padx=(0, 10), pady=5)
+
+        # Empty space for Character 1 column
+        ttk.Label(main_frame, text="").grid(row=engaged_row, column=1, padx=10, pady=5)
+
+        # Engaged entry for Character 2
+        self.char2_engaged_entry = ttk.Entry(main_frame, width=10)
+        self.char2_engaged_entry.grid(row=engaged_row, column=2, padx=10, pady=5)
+        self.char2_engaged_entry.insert(0, "1")  # Default value
+
         # Τσιράκι checkbox
-        minion_row = len(self.stats) + 5
+        minion_row = len(self.stats) + 6
         ttk.Label(main_frame, text="Τσιράκι").grid(row=minion_row, column=0, sticky=tk.E, padx=(0, 10), pady=5)
 
         # Empty space for Character 1 column
@@ -174,17 +186,17 @@ class CharacterBattleApp:
 
         # Battle buttons
         single_battle_btn = ttk.Button(main_frame, text="Μονομαχία", command=self.single_battle)
-        single_battle_btn.grid(row=len(self.stats) + 6, column=0, columnspan=3, pady=10)
+        single_battle_btn.grid(row=len(self.stats) + 7, column=0, columnspan=3, pady=10)
 
         thousand_battles_btn = ttk.Button(main_frame, text="1000 μάχες", command=self.thousand_battles)
-        thousand_battles_btn.grid(row=len(self.stats) + 7, column=0, columnspan=3, pady=10)
+        thousand_battles_btn.grid(row=len(self.stats) + 8, column=0, columnspan=3, pady=10)
 
-        ten_thousand_battles_btn = ttk.Button(main_frame, text="10000 μάχες", command=self.ten_thousand_battles)
-        ten_thousand_battles_btn.grid(row=len(self.stats) + 8, column=0, columnspan=3, pady=10)
+        hundred_thousand_battles_btn = ttk.Button(main_frame, text="100000 μάχες", command=self.hundred_thousand_battles)
+        hundred_thousand_battles_btn.grid(row=len(self.stats) + 9, column=0, columnspan=3, pady=10)
 
         # Result text area
         result_frame = ttk.LabelFrame(main_frame, text="Αποτέλεσμα", padding="10")
-        result_frame.grid(row=len(self.stats) + 9, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=10)
+        result_frame.grid(row=len(self.stats) + 10, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=10)
 
         self.result_text = tk.Text(result_frame, height=10, width=70, wrap=tk.WORD)
         scrollbar = ttk.Scrollbar(result_frame, orient=tk.VERTICAL, command=self.result_text.yview)
@@ -199,7 +211,7 @@ class CharacterBattleApp:
 
         result_frame.columnconfigure(0, weight=1)
         result_frame.rowconfigure(0, weight=1)
-        main_frame.rowconfigure(len(self.stats) + 9, weight=1)
+        main_frame.rowconfigure(len(self.stats) + 10, weight=1)
 
     def select_all(self, event):
         """Select all text in result area"""
@@ -232,6 +244,14 @@ class CharacterBattleApp:
         try:
             number = int(self.char2_number_entry.get()) if self.char2_number_entry.get() else 1
             return max(1, number)  # Τουλάχιστον 1
+        except ValueError:
+            return 1
+
+    def get_char2_engaged(self):
+        """Παίρνει τον αριθμό των χαρακτήρων 2 που μάχονται ταυτόχρονα (τουλάχιστον 1)"""
+        try:
+            engaged = int(self.char2_engaged_entry.get()) if self.char2_engaged_entry.get() else 1
+            return max(1, engaged)
         except ValueError:
             return 1
 
@@ -330,7 +350,7 @@ class CharacterBattleApp:
         result += f"Κατάσταση {defender.name}: {defender.wounds} λαβωματιές, {defender.fatigue} κόπωση\n\n"
         return result, False
 
-    def simulate_battle_silent(self, char1_stats, char2_stats, char1_indomitable, char2_indomitable, char1_overexertion, char2_overexertion, char1_never_stunned, char2_never_stunned, char2_number=1, char2_minion=False):
+    def simulate_battle_silent(self, char1_stats, char2_stats, char1_indomitable, char2_indomitable, char1_overexertion, char2_overexertion, char1_never_stunned, char2_never_stunned, char2_number=1, char2_engaged=1, char2_minion=False):
         """Προσομοιώνει μια μάχη χωρίς output - επιστρέφει (νικητής, γύροι)"""
         # Δημιουργία χαρακτήρων
         char1 = Character("Χαρακτήρας 1", char1_stats, char1_indomitable, char1_overexertion, char1_never_stunned)
@@ -349,7 +369,7 @@ class CharacterBattleApp:
                 char2_opponent = Character(char_name, char2_stats, char2_indomitable, char2_overexertion, char2_never_stunned, char2_minion)
                 char2_list.append(char2_opponent)
 
-            return self.simulate_1vMany_silent(char1, char2_list)
+            return self.simulate_1vMany_silent(char1, char2_list, char2_engaged)
 
     def simulate_1v1_silent(self, char1, char2):
         # Φάση πρωτοβουλίας
@@ -407,8 +427,8 @@ class CharacterBattleApp:
 
         return 0, turn_count  # Ισοπαλία
 
-    def simulate_1vMany_silent(self, char1, char2_list):
-        """Προσομοιώνει μάχη 1 vs πολλοί αντιπάλους χωρίς output - επιστρέφει (νικητής, γύροι)"""
+    def simulate_1vMany_silent(self, char1, char2_list, char2_engaged):
+        """Προσομοιώνει μάχη 1 vs πολλοί αντιπάλους χωρίς output με reserves - επιστρέφει (νικητής, γύροι)"""
         import random
 
         # Φάση πρωτοβουλίας
@@ -430,14 +450,17 @@ class CharacterBattleApp:
             if char1.wounds >= 10:
                 return 2, round_count  # Char1 χάνει
 
-            # Ενημέρωση penalty για πολλαπλούς εχθρούς
+            # Χωρίζουμε σε engaged και reserves
+            engaged_enemies = alive_opponents[:char2_engaged]
+
+            # Ενημέρωση penalty για πολλαπλούς εχθρούς - βασισμένο σε engaged
             # -1 για κάθε εχθρό μετά τον πρώτο, μέχρι -5
-            num_enemies = len(alive_opponents)
+            num_enemies = len(engaged_enemies)
             char1.outnumbered_penalty = min(num_enemies - 1, 5)
 
-            # Char1 επιτίθεται σε 1 εχθρό → ο στόχος αντεπιτίθεται
-            if alive_opponents:
-                target = random.choice(alive_opponents)
+            # Char1 επιτίθεται σε 1 εχθρό από τους engaged → ο στόχος αντεπιτίθεται
+            if engaged_enemies:
+                target = random.choice(engaged_enemies)
                 # Επίθεση char1
                 char1_killed_target = self.attack_turn_silent(char1, target)
                 # Αντεπίθεση του στόχου (αν δεν πέθανε)
@@ -446,9 +469,10 @@ class CharacterBattleApp:
                     if target_killed_char1:
                         return 2, round_count
 
-            # Όλοι οι ΥΠΟΛΟΙΠΟΙ ζωντανοί εχθροί επιτίθενται → char1 αντεπιτίθεται
+            # Όλοι οι ΥΠΟΛΟΙΠΟΙ engaged εχθροί επιτίθενται → char1 αντεπιτίθεται
             current_alive = [char for char in char2_list if char.wounds < 10]
-            for enemy in current_alive:
+            current_engaged = current_alive[:char2_engaged]
+            for enemy in current_engaged:
                 if enemy == target:
                     continue  # Ο στόχος ήδη αντεπιτέθηκε
 
@@ -517,6 +541,7 @@ class CharacterBattleApp:
         char1_stats = self.get_character_stats(self.char1_entries)
         char2_stats = self.get_character_stats(self.char2_entries)
         char2_number = self.get_char2_number()
+        char2_engaged = self.get_char2_engaged()
 
         char1_wins = 0
         char2_wins = 0
@@ -530,7 +555,7 @@ class CharacterBattleApp:
         if char2_number == 1:
             self.result_text.insert(tk.END, "Εκτελούνται 1000 μάχες...\n\n")
         else:
-            self.result_text.insert(tk.END, f"Εκτελούνται 1000 μάχες (1 vs {char2_number})...\n\n")
+            self.result_text.insert(tk.END, f"Εκτελούνται 1000 μάχες (1 vs {char2_number}, max {char2_engaged} engaged)...\n\n")
         self.root.update()
 
         for i in range(1000):
@@ -539,7 +564,7 @@ class CharacterBattleApp:
                 self.char1_indomitable.get(), self.char2_indomitable.get(),
                 self.char1_overexertion.get(), self.char2_overexertion.get(),
                 self.char1_never_stunned.get(), self.char2_never_stunned.get(),
-                char2_number, self.char2_minion.get()
+                char2_number, char2_engaged, self.char2_minion.get()
             )
             total_rounds += rounds
             min_rounds = min(min_rounds, rounds)
@@ -578,11 +603,12 @@ class CharacterBattleApp:
 
         self.result_text.insert(tk.END, result)
 
-    def ten_thousand_battles(self):
-        """Εκτελεί 10000 μάχες και εμφανίζει στατιστικά"""
+    def hundred_thousand_battles(self):
+        """Εκτελεί 100000 μάχες και εμφανίζει στατιστικά"""
         char1_stats = self.get_character_stats(self.char1_entries)
         char2_stats = self.get_character_stats(self.char2_entries)
         char2_number = self.get_char2_number()
+        char2_engaged = self.get_char2_engaged()
 
         char1_wins = 0
         char2_wins = 0
@@ -594,18 +620,18 @@ class CharacterBattleApp:
         # Clear previous results
         self.result_text.delete(1.0, tk.END)
         if char2_number == 1:
-            self.result_text.insert(tk.END, "Εκτελούνται 10000 μάχες...\n\n")
+            self.result_text.insert(tk.END, "Εκτελούνται 100000 μάχες...\n\n")
         else:
-            self.result_text.insert(tk.END, f"Εκτελούνται 10000 μάχες (1 vs {char2_number})...\n\n")
+            self.result_text.insert(tk.END, f"Εκτελούνται 100000 μάχες (1 vs {char2_number}, max {char2_engaged} engaged)...\n\n")
         self.root.update()
 
-        for i in range(10000):
+        for i in range(100000):
             winner, rounds = self.simulate_battle_silent(
                 char1_stats, char2_stats,
                 self.char1_indomitable.get(), self.char2_indomitable.get(),
                 self.char1_overexertion.get(), self.char2_overexertion.get(),
                 self.char1_never_stunned.get(), self.char2_never_stunned.get(),
-                char2_number, self.char2_minion.get()
+                char2_number, char2_engaged, self.char2_minion.get()
             )
             total_rounds += rounds
             min_rounds = min(min_rounds, rounds)
@@ -618,18 +644,18 @@ class CharacterBattleApp:
                 draws += 1
 
         # Αποτελέσματα
-        avg_rounds = total_rounds / 10000
-        result = f"=== ΑΠΟΤΕΛΕΣΜΑΤΑ 10000 ΜΑΧΩΩΝ ===\n"
+        avg_rounds = total_rounds / 100000
+        result = f"=== ΑΠΟΤΕΛΕΣΜΑΤΑ 100000 ΜΑΧΩΩΝ ===\n"
         if char2_number > 1:
             result += f"(Χαρακτήρας 1 εναντίον {char2_number} αντιπάλων)\n"
         result += "\n"
-        result += f"Χαρακτήρας 1: {char1_wins} νίκες ({char1_wins/100:.1f}%)\n"
+        result += f"Χαρακτήρας 1: {char1_wins} νίκες ({char1_wins/1000:.1f}%)\n"
         if char2_number == 1:
-            result += f"Χαρακτήρας 2: {char2_wins} νίκες ({char2_wins/100:.1f}%)\n"
+            result += f"Χαρακτήρας 2: {char2_wins} νίκες ({char2_wins/1000:.1f}%)\n"
         else:
-            result += f"Οι αντίπαλοι: {char2_wins} νίκες ({char2_wins/100:.1f}%)\n"
+            result += f"Οι αντίπαλοι: {char2_wins} νίκες ({char2_wins/1000:.1f}%)\n"
         if draws > 0:
-            result += f"Ισοπαλίες: {draws} ({draws/100:.1f}%)\n"
+            result += f"Ισοπαλίες: {draws} ({draws/1000:.1f}%)\n"
         result += f"Μέσος όρος γύρων ανά μάχη: {avg_rounds:.2f} (εύρος: {min_rounds}-{max_rounds})\n\n"
 
         if char1_wins > char2_wins:
