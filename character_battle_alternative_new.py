@@ -631,7 +631,7 @@ class CharacterBattleApp:
 
         # Αποτελέσματα
         avg_rounds = total_rounds / 1000
-        result = f"=== ΑΠΟΤΕΛΕΣΜΑΤΑ 1000 ΜΑΧΩΩΝ ===\n"
+        result = f"=== ΑΠΟΤΕΛΕΣΜΑΤΑ 1000 ΜΑΧΩΝ ===\n"
         if char2_number > 1:
             result += f"(Χαρακτήρας 1 εναντίον {char2_number} αντιπάλων)\n"
         result += "\n"
@@ -690,7 +690,7 @@ class CharacterBattleApp:
 
         # Αποτελέσματα
         avg_rounds = total_rounds / 100000
-        result = f"=== ΑΠΟΤΕΛΕΣΜΑΤΑ 100000 ΜΑΧΩΩΝ ===\n"
+        result = f"=== ΑΠΟΤΕΛΕΣΜΑΤΑ 100000 ΜΑΧΩΝ ===\n"
         if char2_number > 1:
             result += f"(Χαρακτήρας 1 εναντίον {char2_number} αντιπάλων)\n"
         result += "\n"
